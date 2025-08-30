@@ -435,11 +435,14 @@
                     if(currentDateInLoop < startDate || currentDateInLoop > endDate) continue;
                     
                     let shouldDisplay = false;
-                    if (task.repeticao === 'nenhuma' && startDate.toDateString() === currentDateInLoop.toDateString()) {
+                    const repetition = (task.repeticao || '').trim(); // Trim whitespace to avoid errors
+
+                    // CORREÇÃO: Usa a variável 'repetition' tratada para evitar erros com espaços em branco.
+                    if ((repetition === 'nenhuma' || repetition === '') && startDate.toDateString() === currentDateInLoop.toDateString()) {
                         shouldDisplay = true;
-                    } else if (task.repeticao === 'diaria') {
+                    } else if (repetition === 'diaria') {
                         shouldDisplay = true;
-                    } else if (task.repeticao === 'semanal' && task.dias_semana && String(task.dias_semana).split(',').includes(String(currentDateInLoop.getDay()))) {
+                    } else if (repetition === 'semanal' && task.dias_semana && String(task.dias_semana).split(',').includes(String(currentDateInLoop.getDay()))) {
                         shouldDisplay = true;
                     }
 
@@ -529,4 +532,5 @@
     </script>
 </body>
 </html>
+
 
