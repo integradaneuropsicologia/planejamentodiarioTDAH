@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planejador Diário</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .hidden { display: none; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        .weekday-checkbox:checked + label {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        .calendar-grid {
+            display: grid;
+            height: 1200px; /* Altura para 24 horas (50px por hora) */
+        }
+        .time-slot {
+            height: 50px;
+        }
+        .day-column {
+            position: relative;
+            border-left: 1px solid #e5e7eb; /* gray-200 */
+        }
+        .task-block {
+            position: absolute;
+            left: 2px;
+            right: 2px;
+            border-radius: 4px;
+            padding: 4px;
+            color: white;
+            font-size: 0.8rem;
+            overflow: hidden;
+            cursor: pointer;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        /* Estilos para Responsividade Mobile */
+        @media (max-width: 768px) {
+            .main-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            .controls-container {
+                flex-direction: column;
+                align-items: flex-start;
+                width: 100%;
+            }
+            .calendar-grid {
+                grid-template-columns: 40px 1fr !important; /* Coluna de hora menor no mobile */
+            }
+            .task-block {
+                font-size: 0.7rem;
+            }
+            #task-modal-content {
+                padding: 1.5rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="w-full max-w-md p-4">
+        <div class="bg-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">Login</h2>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="login-cpf" class="block text-gray-700 font-semibold mb-2">CPF</label>
+                    <input type="text" id="login-cpf" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="000.000.000-00" required>
+                </div>
+                <div class="mb-4">
+                    <label for="login-nascimento" class="block text-gray-700 font-semibold mb-2">Data de Nascimento</label>
+                    <input type="date" id="login-nascimento" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-4">
+                    <label for="login-senha" class="block text-gray-700 font-semibold mb-2">Senha</label>
+                    <input type="password" id="login-senha" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300">Entrar</button>
+            </form>
+            <p class="text-center text-gray-600 mt-4">Não tem uma conta? <a href="#" id="show-register" class="text-blue-600 hover:underline font-semibold">Cadastre-se</a></p>
+        </div>
+    </div>
+
+    <!-- TELA DE CADASTRO -->
+    <div id="register-screen" class="w-full max-w-md p-4 hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">Cadastro</h2>
+            <form id="register-form">
+                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4 rounded-md">
+                    <p class="font-bold">Atenção!</p>
+                    <p>Use uma senha simples e única para este site. Não reutilize senhas importantes.</p>
+                </div>
+                <div class="mb-4">
+                    <label for="register-nome" class="block text-gray-700 font-semibold mb-2">Nome Completo</label>
+                    <input type="text" id="register-nome" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-4">
+                    <label for="register-cpf" class="block text-gray-700 font-semibold mb-2">CPF</label>
+                    <input type="text" id="register-cpf" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-4">
+                    <label for="register-nascimento" class="block text-gray-700 font-semibold mb-2">Data de Nascimento</label>
+                    <input type="date" id="register-nascimento" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-4">
+                    <label for="register-senha" class="block text-gray-700 font-semibold mb-2">Senha</label>
+                    <input type="password" id="register-senha" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300">Cadastrar</button>
+            </form>
+            <p class="text-center text-gray-600 mt-4">Já tem uma conta? <a href="#" id="show-login" class="text-blue-600 hover:underline font-semibold">Faça Login</a></p>
+        </div>
+    </div>
+    
+    <!-- TELA PRINCIPAL DO APP -->
+    <div id="app-screen" class="w-full max-w-7xl hidden p-4">
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="main-header flex justify-between items-center mb-6 pb-4 border-b">
+                <h1 class="text-3xl font-bold text-gray-800">Minha Agenda</h1>
+                <div class="flex items-center">
+                    <p class="text-gray-700 mr-4">Bem-vindo(a), <span id="user-name" class="font-semibold"></span>!</p>
+                    <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300"><i class="fas fa-sign-out-alt"></i> Sair</button>
+                </div>
+            </div>
+            
+             <div class="controls-container flex flex-wrap gap-4 mb-6">
+                 <button id="add-task-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> Adicionar Atividade</button>
+                <div class="flex rounded-lg border">
+                    <button id="view-daily-btn" class="py-2 px-4 text-gray-600 font-semibold rounded-l-lg bg-gray-100">Visão Diária</button>
+                    <button id="view-weekly-btn" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-r-lg">Visão Semanal</button>
+                </div>
+                <!-- NAVEGAÇÃO DE DIAS -->
+                <div id="date-navigation" class="hidden items-center gap-4">
+                    <button id="prev-day-btn" class="p-2 rounded-full hover:bg-gray-200 transition-colors"><i class="fas fa-chevron-left"></i></button>
+                    <h3 id="current-date-display" class="text-lg font-semibold text-center w-48 whitespace-nowrap"></h3>
+                    <button id="next-day-btn" class="p-2 rounded-full hover:bg-gray-200 transition-colors"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+            
+            <div id="calendar-container" class="overflow-x-auto">
+                <!-- A grade da agenda será renderizada aqui pelo JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE ADICIONAR/EDITAR ATIVIDADE -->
+    <div id="task-modal" class="fixed inset-0 bg-black bg-opacity-60 z-40 flex items-center justify-center p-4 hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md transform transition-all overflow-y-auto max-h-screen" id="task-modal-content">
+            <h3 id="modal-title" class="text-2xl font-bold text-gray-800 mb-6">Nova Atividade</h3>
+            <form id="task-form" class="space-y-4">
+                <input type="hidden" id="task-id">
+                <div>
+                    <label for="task-name" class="block text-gray-700 font-semibold mb-2">Nome da Atividade</label>
+                    <input type="text" id="task-name" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                 <div>
+                    <label for="task-color" class="block text-gray-700 font-semibold mb-2">Cor da Atividade</label>
+                    <input type="color" id="task-color" class="w-full h-10 px-1 py-1 border rounded-lg" value="#3b82f6">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="task-start-day" class="block text-gray-700 font-semibold mb-2">Data de Início</label>
+                        <input type="date" id="task-start-day" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <div id="end-date-container" class="hidden">
+                        <label for="task-end-day" class="block text-gray-700 font-semibold mb-2">Data de Fim</label>
+                        <input type="date" id="task-end-day" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="task-start-time" class="block text-gray-700 font-semibold mb-2">Horário Início</label>
+                        <input type="time" id="task-start-time" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <div>
+                        <label for="task-end-time" class="block text-gray-700 font-semibold mb-2">Horário Fim</label>
+                        <input type="time" id="task-end-time" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                 <div>
+                    <label for="task-repetition" class="block text-gray-700 font-semibold mb-2">Repetir</label>
+                    <select id="task-repetition" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="nenhuma">Não repetir</option>
+                        <option value="diaria">Diariamente</option>
+                        <option value="semanal">Semanalmente</option>
+                    </select>
+                </div>
+                <div id="weekdays-selection" class="hidden pb-2">
+                    <label class="block text-gray-700 font-semibold mb-2">Quais dias?</label>
+                    <div class="grid grid-cols-4 sm:grid-cols-7 gap-2 text-center">
+                        <div><input type="checkbox" id="weekday-0" value="0" class="weekday-checkbox hidden"><label for="weekday-0" class="cursor-pointer p-2 rounded-full border w-10 h-10 inline-flex items-center justify-center">D</label></div>
+                        <div><input type="checkbox" id="weekday-1" value="1" class="weekday-checkbox hidden"><label for="weekday-1" class="cursor-pointer p-2 rounded-full border w-10 h-10 inline-flex items-center justify-center">S</label></div>
+                        <div><input type="checkbox" id="weekday-2" value="2" class="weekday-checkbox hidden"><label for="weekday-2" class="cursor-pointer p-2 rounded-full border w-10 h-10 inline-flex items-center justify-center">T</label></div>
+                        <div><input type="checkbox" id="weekday-3" value="3" class="weekday-checkbox hidden"><label for="weekday-3" class="cursor-pointer p-2 rounded-full border w-10 h-10 inline-flex items-center justify-center">Q</label></div>
+                        <div><input type="checkbox" id="weekday-4" value="4" class="weekday-checkbox hidden"><label for="weekday-4" class="cursor-pointer p-2 rounded-full border w-10 h-10 inline-flex items-center justify-center">Q</label></div>
+                        <div><input type="checkbox" id="weekday-5" value="5" class="weekday-checkbox hidden"><label for="weekday-5" class="cursor-pointer p-2 rounded-full border w-10 h-10 inline-flex items-center justify-center">S</label></div>
+                        <div><input type="checkbox" id="weekday-6" value="6" class="weekday-checkbox hidden"><label for="weekday-6" class="cursor-pointer p-2 rounded-full border w-10 h-10 inline-flex items-center justify-center">S</label></div>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center gap-4 pt-4">
+                    <button type="button" id="delete-task-btn-modal" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg hidden"><i class="fas fa-trash-alt"></i> Excluir</button>
+                    <div class="flex justify-end gap-4 flex-grow">
+                        <button type="button" id="cancel-task-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg">Salvar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwky5rlCnG3FRJpdeQgCqFlpzLrwsQ-1k7LRf4Mxnknviz-EUIBHt4Lv1iZ-N3F-P12/exec';
+
+        const screens = { login: document.getElementById('login-screen'), register: document.getElementById('register-screen'), app: document.getElementById('app-screen'), };
+        const forms = { login: document.getElementById('login-form'), register: document.getElementById('register-form'), task: document.getElementById('task-form'), };
+        const buttons = {
+            showRegister: document.getElementById('show-register'),
+            showLogin: document.getElementById('show-login'),
+            logout: document.getElementById('logout-btn'),
+            addTask: document.getElementById('add-task-btn'),
+            cancelTask: document.getElementById('cancel-task-btn'),
+            deleteTaskModal: document.getElementById('delete-task-btn-modal'),
+            viewDaily: document.getElementById('view-daily-btn'),
+            viewWeekly: document.getElementById('view-weekly-btn'),
+            prevDay: document.getElementById('prev-day-btn'),
+            nextDay: document.getElementById('next-day-btn'),
+        };
+        const taskModal = document.getElementById('task-modal');
+        const calendarContainer = document.getElementById('calendar-container');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const repetitionSelect = document.getElementById('task-repetition');
+        const weekdaysSelection = document.getElementById('weekdays-selection');
+        const endDateContainer = document.getElementById('end-date-container');
+        const dateNavigation = document.getElementById('date-navigation');
+        const currentDateDisplay = document.getElementById('current-date-display');
+        
+        let currentUser = null;
+        let userTasks = [];
+        let currentViewMode = 'weekly';
+        let currentDate = new Date();
+        
+        const showLoading = (show) => loadingOverlay.classList.toggle('hidden', !show);
+        const showAlert = (message) => alert(message);
+        const showScreen = (screenName) => { Object.values(screens).forEach(s => s.classList.add('hidden')); screens[screenName].classList.remove('hidden'); };
+
+        async function apiCall(action, payload = {}) {
+            showLoading(true);
+            try {
+                const response = await fetch(WEB_APP_URL, { method: 'POST', mode: 'cors', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...payload }) });
+                if (!response.ok) throw new Error('Erro de rede.');
+                const result = await response.json();
+                if (result.status === 'error') throw new Error(result.message);
+                return result;
+            } catch (error) {
+                showAlert(`Erro: ${error.message}`);
+                return null;
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        const handleLogin = async (e) => { e.preventDefault(); const result = await apiCall('login', { cpf: document.getElementById('login-cpf').value, dataNascimento: document.getElementById('login-nascimento').value, senha: document.getElementById('login-senha').value }); if (result && result.user) { currentUser = result.user; sessionStorage.setItem('dailyPlannerUser', JSON.stringify(currentUser)); initializeApp(); }};
+        const handleRegister = async (e) => { e.preventDefault(); const result = await apiCall('register', { nome: document.getElementById('register-nome').value, cpf: document.getElementById('register-cpf').value, dataNascimento: document.getElementById('register-nascimento').value, senha: document.getElementById('register-senha').value }); if (result) { showAlert('Cadastro realizado com sucesso! Faça o login.'); forms.register.reset(); showScreen('login'); } };
+        const handleLogout = () => { currentUser = null; sessionStorage.removeItem('dailyPlannerUser'); userTasks = []; calendarContainer.innerHTML = ''; showScreen('login'); };
+
+        const fetchTasks = async () => {
+            if (!currentUser) return;
+            const result = await apiCall('getTasks', { cpf: currentUser.cpf });
+            if (result && result.tasks) {
+                userTasks = result.tasks;
+                renderCalendar();
+            }
+        };
+        
+        const handleSaveTask = async (e) => {
+            e.preventDefault();
+            const selectedDays = Array.from(document.querySelectorAll('.weekday-checkbox:checked')).map(cb => cb.value);
+            const taskData = {
+                id_atividade: document.getElementById('task-id').value,
+                cpf_usuario: currentUser.cpf,
+                atividade: document.getElementById('task-name').value,
+                cor: document.getElementById('task-color').value,
+                dia_inicio: document.getElementById('task-start-day').value,
+                dia_fim: document.getElementById('task-end-day').value,
+                horario_inicio: document.getElementById('task-start-time').value,
+                horario_fim: document.getElementById('task-end-time').value,
+                repeticao: repetitionSelect.value,
+                dias_semana: selectedDays.join(','),
+            };
+            const result = await apiCall('saveTask', taskData);
+            if (result) {
+                closeTaskModal();
+                fetchTasks();
+            }
+        };
+        
+        const handleDeleteTask = async () => {
+            const taskId = document.getElementById('task-id').value;
+            if (!taskId || !confirm('Tem certeza que deseja excluir esta atividade?')) return;
+            const result = await apiCall('deleteTask', { id_atividade: taskId, cpf_usuario: currentUser.cpf });
+            if (result) { 
+                closeTaskModal();
+                fetchTasks();
+            }
+        };
+        
+        const openTaskModal = (task = null) => {
+            forms.task.reset();
+            document.querySelectorAll('.weekday-checkbox').forEach(cb => cb.checked = false);
+            weekdaysSelection.classList.add('hidden');
+            endDateContainer.classList.add('hidden');
+            buttons.deleteTaskModal.classList.add('hidden');
+            document.getElementById('task-color').value = '#3b82f6';
+            
+            if (task) {
+                document.getElementById('modal-title').innerText = 'Editar Atividade';
+                buttons.deleteTaskModal.classList.remove('hidden');
+                document.getElementById('task-id').value = task.id_atividade;
+                document.getElementById('task-name').value = task.atividade;
+                document.getElementById('task-color').value = task.cor || '#3b82f6';
+                document.getElementById('task-start-day').value = task.dia_inicio;
+                document.getElementById('task-end-day').value = task.dia_fim || '';
+                document.getElementById('task-start-time').value = task.horario_inicio;
+                document.getElementById('task-end-time').value = task.horario_fim;
+                repetitionSelect.value = task.repeticao;
+                
+                if (task.repeticao !== 'nenhuma') endDateContainer.classList.remove('hidden');
+                if (task.repeticao === 'semanal') {
+                    weekdaysSelection.classList.remove('hidden');
+                    if (task.dias_semana) {
+                        String(task.dias_semana).split(',').forEach(day => {
+                            const cb = document.getElementById(`weekday-${day}`);
+                            if(cb) cb.checked = true;
+                        });
+                    }
+                }
+            } else {
+                document.getElementById('modal-title').innerText = 'Nova Atividade';
+                document.getElementById('task-id').value = '';
+                document.getElementById('task-start-day').valueAsDate = new Date();
+            }
+            taskModal.classList.remove('hidden');
+        };
+
+        const closeTaskModal = () => taskModal.classList.add('hidden');
+        
+        repetitionSelect.addEventListener('change', () => {
+            const isRepeating = repetitionSelect.value !== 'nenhuma';
+            weekdaysSelection.classList.toggle('hidden', repetitionSelect.value !== 'semanal');
+            endDateContainer.classList.toggle('hidden', !isRepeating);
+        });
+        
+        function timeToMinutes(time) {
+            if (!time) return 0;
+            const [hours, minutes] = time.split(':').map(Number);
+            return hours * 60 + minutes;
+        }
+
+        const renderCalendar = () => {
+            calendarContainer.innerHTML = '';
+            const daysToShow = currentViewMode === 'weekly' ? 7 : 1;
+            
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+            grid.style.gridTemplateColumns = `50px repeat(${daysToShow}, 1fr)`;
+
+            grid.innerHTML += '<div></div>'; 
+            const baseDate = new Date(currentDate);
+            const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+            if(currentViewMode === 'daily') {
+                const options = { weekday: 'long', day: 'numeric', month: 'long' };
+                currentDateDisplay.textContent = baseDate.toLocaleDateString('pt-BR', options);
+            }
+
+            for (let i = 0; i < daysToShow; i++) {
+                const day = new Date(baseDate);
+                if (currentViewMode === 'weekly') day.setDate(baseDate.getDate() + i);
+                
+                grid.innerHTML += `<div class="text-center font-bold p-2 border-b-2">
+                    <p>${dayNames[day.getDay()]}</p>
+                    <p class="text-gray-500 font-normal">${day.getDate()}/${day.getMonth()+1}</p>
+                </div>`;
+            }
+
+            const timeColumn = document.createElement('div');
+            for (let i = 0; i < 24; i++) {
+                timeColumn.innerHTML += `<div class="time-slot text-right pr-2 text-sm text-gray-500 border-r border-t">${String(i).padStart(2, '0')}:00</div>`;
+            }
+            grid.appendChild(timeColumn);
+
+            const dayColumns = [];
+            for (let i = 0; i < daysToShow; i++) {
+                const dayCol = document.createElement('div');
+                dayCol.className = 'day-column';
+                for (let j = 0; j < 24; j++) dayCol.innerHTML += '<div class="time-slot border-t"></div>';
+                grid.appendChild(dayCol);
+                dayColumns.push(dayCol);
+            }
+
+            const viewStartDate = new Date(baseDate);
+            viewStartDate.setHours(0,0,0,0);
+            
+            userTasks.forEach(task => {
+                const startDate = new Date(task.dia_inicio + 'T00:00:00');
+                const endDate = task.dia_fim ? new Date(task.dia_fim + 'T23:59:59') : new Date('9999-12-31');
+
+                for (let i = 0; i < daysToShow; i++) {
+                    const currentDateInLoop = new Date(viewStartDate);
+                    if(currentViewMode === 'weekly') currentDateInLoop.setDate(viewStartDate.getDate() + i);
+
+                    if(currentDateInLoop < startDate || currentDateInLoop > endDate) continue;
+                    
+                    let shouldDisplay = false;
+                    if (task.repeticao === 'nenhuma' && startDate.toDateString() === currentDateInLoop.toDateString()) {
+                        shouldDisplay = true;
+                    } else if (task.repeticao === 'diaria') {
+                        shouldDisplay = true;
+                    } else if (task.repeticao === 'semanal' && task.dias_semana && String(task.dias_semana).split(',').includes(String(currentDateInLoop.getDay()))) {
+                        shouldDisplay = true;
+                    }
+
+                    if (shouldDisplay) {
+                        const startMinutes = timeToMinutes(task.horario_inicio);
+                        const endMinutes = timeToMinutes(task.horario_fim) || (startMinutes + 60);
+                        const duration = endMinutes - startMinutes;
+                        
+                        const top = (startMinutes / 60) * 50;
+                        const height = (duration / 60) * 50;
+
+                        const taskBlock = document.createElement('div');
+                        taskBlock.className = 'task-block';
+                        taskBlock.style.top = `${top}px`;
+                        taskBlock.style.height = `${height}px`;
+                        taskBlock.style.backgroundColor = task.cor || '#3b82f6';
+                        taskBlock.innerHTML = `<strong>${task.atividade}</strong><br>${task.horario_inicio || ''}${task.horario_fim ? ' - ' + task.horario_fim : ''}`;
+                        taskBlock.addEventListener('click', () => openTaskModal(task));
+                        dayColumns[i].appendChild(taskBlock);
+                    }
+                }
+            });
+            calendarContainer.appendChild(grid);
+        };
+        
+        const initializeApp = () => {
+            if (currentUser) {
+                document.getElementById('user-name').textContent = currentUser.nome.split(' ')[0];
+                showScreen('app');
+                fetchTasks();
+            } else {
+                showScreen('login');
+            }
+        };
+
+        const updateViewButtons = () => {
+            const isWeekly = currentViewMode === 'weekly';
+            buttons.viewWeekly.classList.toggle('bg-blue-500', isWeekly);
+            buttons.viewWeekly.classList.toggle('text-white', isWeekly);
+            buttons.viewWeekly.classList.toggle('bg-gray-100', !isWeekly);
+            buttons.viewWeekly.classList.toggle('text-gray-600', !isWeekly);
+            
+            buttons.viewDaily.classList.toggle('bg-blue-500', !isWeekly);
+            buttons.viewDaily.classList.toggle('text-white', !isWeekly);
+            buttons.viewDaily.classList.toggle('bg-gray-100', isWeekly);
+            buttons.viewDaily.classList.toggle('text-gray-600', isWeekly);
+        };
+
+        buttons.viewDaily.addEventListener('click', () => {
+            currentViewMode = 'daily';
+            dateNavigation.classList.remove('hidden');
+            updateViewButtons();
+            renderCalendar();
+        });
+
+        buttons.viewWeekly.addEventListener('click', () => {
+            currentViewMode = 'weekly';
+            currentDate = new Date();
+            dateNavigation.classList.add('hidden');
+            updateViewButtons();
+            renderCalendar();
+        });
+        
+        buttons.prevDay.addEventListener('click', () => {
+            currentDate.setDate(currentDate.getDate() - 1);
+            renderCalendar();
+        });
+        buttons.nextDay.addEventListener('click', () => {
+            currentDate.setDate(currentDate.getDate() + 1);
+            renderCalendar();
+        });
+
+        forms.login.addEventListener('submit', handleLogin);
+        forms.register.addEventListener('submit', handleRegister);
+        forms.task.addEventListener('submit', handleSaveTask);
+        buttons.showRegister.addEventListener('click', (e) => { e.preventDefault(); showScreen('register'); });
+        buttons.showLogin.addEventListener('click', (e) => { e.preventDefault(); showScreen('login'); });
+        buttons.logout.addEventListener('click', handleLogout);
+        buttons.addTask.addEventListener('click', () => openTaskModal());
+        buttons.cancelTask.addEventListener('click', closeTaskModal);
+        buttons.deleteTaskModal.addEventListener('click', handleDeleteTask);
+        
+        const savedUser = sessionStorage.getItem('dailyPlannerUser');
+        if (savedUser) currentUser = JSON.parse(savedUser);
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
+
